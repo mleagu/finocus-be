@@ -27,9 +27,15 @@ export const KEYS = {
    * 200-holding manager could exhaust the entire invocation on cache reads.
    */
   tickers: `${V}:tickers`,
+  /**
+   * Last refresh that did something. Written only when a step changed a payload
+   * or failed, never as a heartbeat — see the note in refresh.ts about the
+   * write budget.
+   */
   refreshLog: `${V}:refresh-log`,
-  /** Position in the round-robin refresh; see refresh.ts. */
-  cursor: `${V}:cursor`,
+  // There is deliberately no `cursor` key. The round-robin position used to
+  // live here and cost two KV operations per cron tick to maintain; it is now
+  // derived from wall time in `cursorAt()`, which the clock already knows.
 } as const;
 
 /** Envelope stamped on everything served, so clients can show data age. */

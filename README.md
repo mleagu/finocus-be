@@ -112,11 +112,16 @@ Known upstream behaviour, all observed directly:
 
 ## How the refresh works
 
-Cron fires every 15 minutes and advances **one step** of a round-robin cycle:
+Cron fires every 15 minutes and runs **one step** of a round-robin cycle:
 
 ```
 market -> investors[0..1] -> investors[2..3] -> ... -> consensus -> calendar -> market
 ```
+
+Which step is **derived from wall time**, not read from KV. `cursorAt()` is the
+tick number modulo the cycle length, so each invocation works out its own
+position with no state to load, save or drift. A delayed cron skips a slot
+rather than replaying one, and every phase is idempotent, so nothing is lost.
 
 That sharding is not premature optimisation. The free plan allows **50
 subrequests per invocation** and a single-pass refresh costs ~200 — measured, not
@@ -133,8 +138,9 @@ hits.
 Each step is independent and best-effort. A FRED outage must not blank the
 superinvestor data; one malformed filing must not abort the other 27. Anything
 that fails leaves the **previous** payload in KV, which beats serving nothing —
-the refresh only ever writes on success. A failing step still advances the
-cursor, so one bad phase cannot wedge the cycle and starve the others.
+the refresh only ever writes on success. Nothing can wedge the cycle, because
+the next step is whatever the clock says rather than something a failed run had
+to record.
 
 Two caches make repeat runs nearly free:
 
@@ -143,10 +149,38 @@ Two caches make repeat runs nearly free:
 - **CUSIP → ticker** is likewise permanent, held as one entry for the whole
   universe rather than one key per CUSIP.
 
+### Writes are scarcer than reads
+
+The free plan meters **1,000 KV writes a day against 100,000 reads**, a 100:1
+ratio, and at a 15-minute cron anything written once per tick costs a fifth of
+the daily write budget on its own. The first deployed version burned ~517
+writes/day and tripped Cloudflare's 50% warning within a day. Where they went:
+
+| | writes/day | |
+|---|---|---|
+| Cursor + refresh log, every tick | 222 | pure bookkeeping |
+| Investor payloads, rewritten unchanged | 184 | 13Fs land 4x a year |
+| Cold-start filings and ticker map | ~86 | one-off |
+| Payloads that genuinely changed | ~25 | the actual work |
+
+Three rules came out of that, and each is commented where it applies:
+
+- **Never write to record that nothing happened.** The cursor is derived from
+  the clock, and the refresh log is written only when a step changed something
+  or failed — not as a heartbeat.
+- **Spend a read to avoid a write.** `refreshInvestor` reads the stored
+  accession first and returns early when the newest filing is the one already
+  cached, which also skips the portfolio fetches and the OpenFIGI pass.
+- **Batch related state into one key.** Already why the CUSIP→ticker map is a
+  single entry.
+
+Steady state is now ~40 writes/day, dominated by the three phases that
+legitimately produce new data every cycle.
+
 ## Tests
 
 ```bash
-npm test        # 106 tests
+npm test        # 150 tests
 npm run typecheck
 ```
 
