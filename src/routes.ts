@@ -2,6 +2,7 @@ import { SUPERINVESTORS } from './domain/superinvestors';
 import type { Env } from './env';
 import { KEYS, readCache, type Cached } from './lib/kv';
 import { API_BASE_URLS } from './config';
+import { privacyPolicyResponse } from './privacy';
 import { PHASES, refreshAll, refreshStep, type Phase } from './refresh';
 import { TRADINGVIEW_HEADERS } from './sources/economicCalendar';
 
@@ -47,6 +48,11 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
 
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
+  // --- public pages ---
+  // HTML, not JSON, and deliberately above the API routes: Google Play requires
+  // a policy URL that a reviewer can open in a browser without credentials.
+  if (path === '/privacy') return privacyPolicyResponse();
+
   // --- meta ---
   if (path === '/' || path === '/health') {
     const log = await readCache<unknown>(env, KEYS.refreshLog);
@@ -55,6 +61,7 @@ export async function handleRequest(request: Request, env: Env, ctx: ExecutionCo
       ok: true,
       lastRefresh: log?.data ?? null,
       routes: [
+        'GET /privacy',
         'GET /v1/market',
         'GET /v1/investors',
         'GET /v1/investors/:id',
