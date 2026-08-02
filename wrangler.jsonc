@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "finocus-be",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-02",
+
+  "observability": { "enabled": true },
+
+  // Every 15 minutes, because each tick does ONE step of the refresh cycle —
+  // the free plan allows 50 subrequests per invocation and a full pass costs
+  // ~200, so the work is sharded (see refresh.ts).
+  //
+  // A cycle is 16 steps (market + 14 investor batches + consensus) = ~4 hours,
+  // so prices refresh ~6x/day. 13F filings land in four windows a year
+  // (mid Feb/May/Aug/Nov); the rest of the time investor steps are almost
+  // entirely KV cache hits, since filings are immutable once accepted.
+  "triggers": { "crons": ["*/15 * * * *"] },
+
+  // Created with:  npx wrangler kv namespace create CACHE
+  // `preview_id` points at the same namespace on purpose: `wrangler dev --remote`
+  // needs one, and everything cached here is public market data that the refresh
+  // job rewrites idempotently — so there is nothing a dev run could corrupt.
+  // Split it out if that ever stops being true.
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "490debcf74864b0aacf565616f0db4de",
+      "preview_id": "490debcf74864b0aacf565616f0db4de"
+    }
+  ]
+
+  // Secrets are NOT declared here — they are set out of band and never committed:
+  //   npx wrangler secret put FRED_API_KEY
+  //   npx wrangler secret put ADMIN_TOKEN     (optional, guards /admin/refresh)
+}

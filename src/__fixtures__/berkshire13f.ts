@@ -1,0 +1,487 @@
+/**
+ * Verbatim rows from Berkshire Hathaway's Q1 2026 Form 13F-HR information table
+ * (accession 0001193125-26-226661, filed 2026-05-15), trimmed to three issuers.
+ *
+ * Kept as real SEC output rather than a hand-written sample so the parser is
+ * tested against the quirks that actually exist -- in particular the same CUSIP
+ * repeating across rows, one per manager with discretion over the shares.
+ * Inlined as a module so the tests need no filesystem access.
+ */
+export const BERKSHIRE_13F_XML = `<informationTable xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.sec.gov/edgar/document/thirteenf/informationtable">
+<infoTable>
+    <nameOfIssuer>ALLY FINL INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>02005N100</cusip>
+    <value>498992850</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>12719675</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4</otherManager>
+    <votingAuthority>
+      <Sole>12719675</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>ALLY FINL INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>02005N100</cusip>
+    <value>109996016</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>2803875</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>2,4,11</otherManager>
+    <votingAuthority>
+      <Sole>2803875</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>ALLY FINL INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>02005N100</cusip>
+    <value>165872286</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>4228200</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,5</otherManager>
+    <votingAuthority>
+      <Sole>4228200</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>ALLY FINL INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>02005N100</cusip>
+    <value>123064510</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>3137000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,8,11</otherManager>
+    <votingAuthority>
+      <Sole>3137000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>ALLY FINL INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>02005N100</cusip>
+    <value>189726088</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>4836250</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,10</otherManager>
+    <votingAuthority>
+      <Sole>4836250</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>ALLY FINL INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>02005N100</cusip>
+    <value>50018250</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>1275000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,11</otherManager>
+    <votingAuthority>
+      <Sole>1275000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>APPLE INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>037833100</cusip>
+    <value>175622680</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>692000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4</otherManager>
+    <votingAuthority>
+      <Sole>692000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>APPLE INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>037833100</cusip>
+    <value>974553600</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>3840000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>1,2,4,11</otherManager>
+    <votingAuthority>
+      <Sole>3840000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>APPLE INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>037833100</cusip>
+    <value>8628860</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>34000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>2,4,11</otherManager>
+    <votingAuthority>
+      <Sole>34000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>APPLE INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>037833100</cusip>
+    <value>8812603960</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>34724000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,5</otherManager>
+    <votingAuthority>
+      <Sole>34724000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>APPLE INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>037833100</cusip>
+    <value>691323960</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>2724000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,6</otherManager>
+    <votingAuthority>
+      <Sole>2724000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>APPLE INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>037833100</cusip>
+    <value>3941866280</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>15532000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,7</otherManager>
+    <votingAuthority>
+      <Sole>15532000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>APPLE INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>037833100</cusip>
+    <value>15618994925</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>61542988</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,8,11</otherManager>
+    <votingAuthority>
+      <Sole>61542988</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>APPLE INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>037833100</cusip>
+    <value>1828303160</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>7204000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,5,9</otherManager>
+    <votingAuthority>
+      <Sole>7204000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>APPLE INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>037833100</cusip>
+    <value>3672848880</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>14472000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,10</otherManager>
+    <votingAuthority>
+      <Sole>14472000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>APPLE INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>037833100</cusip>
+    <value>20471924668</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>80664820</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,11</otherManager>
+    <votingAuthority>
+      <Sole>80664820</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>APPLE INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>037833100</cusip>
+    <value>688278480</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>2712000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,12</otherManager>
+    <votingAuthority>
+      <Sole>2712000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>APPLE INC</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>037833100</cusip>
+    <value>958311040</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>3776000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,14</otherManager>
+    <votingAuthority>
+      <Sole>3776000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>COCA COLA CO</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>191216100</cusip>
+    <value>60840000</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>800000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4</otherManager>
+    <votingAuthority>
+      <Sole>800000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>COCA COLA CO</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>191216100</cusip>
+    <value>28250370</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>371471</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>1,2,4,11</otherManager>
+    <votingAuthority>
+      <Sole>371471</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>COCA COLA CO</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>191216100</cusip>
+    <value>6464250</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>85000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>2,4,11</otherManager>
+    <votingAuthority>
+      <Sole>85000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>COCA COLA CO</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>191216100</cusip>
+    <value>6105537360</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>80283200</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,5</otherManager>
+    <votingAuthority>
+      <Sole>80283200</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>COCA COLA CO</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>191216100</cusip>
+    <value>138715200</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>1824000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,6</otherManager>
+    <votingAuthority>
+      <Sole>1824000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>COCA COLA CO</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>191216100</cusip>
+    <value>1095971760</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>14411200</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,8,11</otherManager>
+    <votingAuthority>
+      <Sole>14411200</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>COCA COLA CO</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>191216100</cusip>
+    <value>1140019920</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>14990400</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,10</otherManager>
+    <votingAuthority>
+      <Sole>14990400</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>COCA COLA CO</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>191216100</cusip>
+    <value>21501063540</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>282722729</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,11</otherManager>
+    <votingAuthority>
+      <Sole>282722729</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>COCA COLA CO</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>191216100</cusip>
+    <value>270129600</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>3552000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,12</otherManager>
+    <votingAuthority>
+      <Sole>3552000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+<infoTable>
+    <nameOfIssuer>COCA COLA CO</nameOfIssuer>
+    <titleOfClass>COM</titleOfClass>
+    <cusip>191216100</cusip>
+    <value>73008000</value>
+    <shrsOrPrnAmt>
+      <sshPrnamt>960000</sshPrnamt>
+      <sshPrnamtType>SH</sshPrnamtType>
+    </shrsOrPrnAmt>
+    <investmentDiscretion>DFND</investmentDiscretion>
+    <otherManager>4,13</otherManager>
+    <votingAuthority>
+      <Sole>960000</Sole>
+      <Shared>0</Shared>
+      <None>0</None>
+    </votingAuthority>
+  </infoTable>
+</informationTable>`;

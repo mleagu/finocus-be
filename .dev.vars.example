@@ -1,0 +1,11 @@
+# Copy to .dev.vars for local `wrangler dev`. .dev.vars is gitignored.
+# In production these are Worker secrets, not files:
+#   npx wrangler secret put FRED_API_KEY
+FRED_API_KEY=your-fred-key-here
+ADMIN_TOKEN=any-random-string
+
+# Contact address SEC requires from automated clients. It must be REAL — SEC's
+# fair-access policy 403s requests without one, so a placeholder here means
+# every 13F fetch fails. A secret rather than a source constant only because it
+# is a personal address that would otherwise live in git forever.
+SEC_USER_AGENT=Your Project your-email@example.com

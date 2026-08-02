@@ -1,0 +1,22 @@
+{
+  "name": "finocus-be",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker API for Finocus — pulls market and 13F data on a schedule, precomputes it, serves it ready to render.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "dev:remote": "wrangler dev --remote",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "tail": "wrangler tail",
+    "cron:local": "curl -s 'http://localhost:8787/__scheduled?cron=0+7+*+*+*'"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260730.1",
+    "typescript": "^5.9.2",
+    "vitest": "^2.1.9",
+    "wrangler": "^4.118.0"
+  }
+}
