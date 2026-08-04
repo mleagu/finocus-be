@@ -6,15 +6,20 @@
 
   "observability": { "enabled": true },
 
-  // Every 15 minutes, because each tick does ONE step of the refresh cycle —
-  // the free plan allows 50 subrequests per invocation and a full pass costs
-  // ~200, so the work is sharded (see refresh.ts).
+  // Every 10 minutes. Each tick does ONE step — the free plan allows 50
+  // subrequests per invocation and a full pass costs ~200, so the work is
+  // sharded (see refresh.ts). MUST MATCH `CRON_INTERVAL_MS` there: the refresh
+  // position is derived from the tick number, so a mismatch silently changes
+  // which phase runs when.
   //
-  // A cycle is 16 steps (market + 14 investor batches + consensus) = ~4 hours,
-  // so prices refresh ~6x/day. 13F filings land in four windows a year
-  // (mid Feb/May/Aug/Nov); the rest of the time investor steps are almost
-  // entirely KV cache hits, since filings are immutable once accepted.
-  "triggers": { "crons": ["*/15 * * * *"] },
+  // 10 rather than 15 because prices refresh on EVERY tick while the US
+  // extended session is open (04:00–20:00 ET), which sets the dashboard's
+  // worst-case staleness at one interval. Off-session ticks run the rotation:
+  // market + 14 investor batches + consensus + calendar, and the 8-hour
+  // overnight window is 48 ticks, so every phase is reached at least twice a
+  // night. 13F filings land in four windows a year (mid Feb/May/Aug/Nov); the
+  // rest of the time investor steps write nothing at all.
+  "triggers": { "crons": ["*/10 * * * *"] },
 
   // Created with:  npx wrangler kv namespace create CACHE
   // `preview_id` points at the same namespace on purpose: `wrangler dev --remote`

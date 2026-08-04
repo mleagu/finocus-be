@@ -2,6 +2,7 @@ import { SEC_REQUEST_GAP_MS, secUserAgent } from './config';
 import { buildAssessment } from './domain/assessment';
 import { buildCalendar, isoDate, weekWindow } from './domain/calendar';
 import { buildConsensus, buildMoves, type ConsensusInput } from './domain/consensus';
+import { isExtendedTradingHours } from './domain/marketHours';
 import {
   closeSeries,
   computeStats,
@@ -76,9 +77,17 @@ const INVESTORS_PER_STEP = 2;
  */
 const MAX_FIGI_CALLS_PER_STEP = 10;
 
-export type Phase = 'market' | 'investors' | 'consensus' | 'calendar';
+export type Phase = 'market' | 'price' | 'investors' | 'consensus' | 'calendar';
 
-export const PHASES: Phase[] = ['market', 'investors', 'consensus', 'calendar'];
+/** Every phase `?phase=` will accept. */
+export const PHASES: Phase[] = ['market', 'price', 'investors', 'consensus', 'calendar'];
+
+/**
+ * The phases that take turns on the clock. `price` is deliberately absent: it
+ * is driven by the trading session rather than by rotation, and giving it a
+ * rotation slot as well would refresh prices twice in the same tick.
+ */
+const ROTATION: Exclude<Phase, 'price'>[] = ['market', 'investors', 'consensus', 'calendar'];
 
 export interface Cursor {
   phase: Phase;
@@ -89,7 +98,7 @@ export interface Cursor {
 }
 
 /** Cron interval, and therefore the width of one slot. Must match wrangler.jsonc. */
-const CRON_INTERVAL_MS = 15 * 60 * 1000;
+const CRON_INTERVAL_MS = 10 * 60 * 1000;
 
 /** Investor batches needed to cover the roster. */
 function investorBatches(): number {
@@ -119,6 +128,17 @@ export function stepsPerCycle(): number {
  * The one property lost is "resume exactly where we left off after an outage".
  * That was never worth much here: every phase is idempotent and the whole cycle
  * comes round again in about four hours.
+ *
+ * DURING THE TRADING SESSION EVERY TICK IS `price` INSTEAD. That is the whole
+ * point of the split: a full `market` step costs ~14 subrequests, 11 of them
+ * FRED series that cannot change in ten minutes (CPI is monthly, GDP quarterly,
+ * yields daily). `price` refetches only the quote and reuses the stored macro,
+ * so intraday freshness costs ~3 operations rather than 14.
+ *
+ * The rotation still gets ample coverage. Out-of-session ticks run 20:00–04:00
+ * ET, which is 48 consecutive ticks at a 10-minute cron — more than the 17-slot
+ * cycle, so every phase is reached at least twice a night, and weekends run the
+ * rotation continuously.
  */
 export function cursorAt(nowMs: number): Cursor {
   const total = stepsPerCycle();
@@ -127,6 +147,8 @@ export function cursorAt(nowMs: number): Cursor {
   const slot = ((tick % total) + total) % total;
   const cycle = Math.floor(tick / total);
   const batches = investorBatches();
+
+  if (isExtendedTradingHours(nowMs)) return { phase: 'price', index: 0, cycle };
 
   if (slot === 0) return { phase: 'market', index: 0, cycle };
   if (slot <= batches) {
@@ -181,6 +203,8 @@ export async function refreshStep(
     if (cursor.phase === 'market') {
       await refreshMarket(env, nowMs);
       wrote.push(KEYS.market);
+    } else if (cursor.phase === 'price') {
+      if (await refreshPrice(env, nowMs)) wrote.push(KEYS.market);
     } else if (cursor.phase === 'investors') {
       const batch = SUPERINVESTORS.slice(cursor.index, cursor.index + INVESTORS_PER_STEP);
       report.handled = batch.map((s) => s.id);
@@ -223,7 +247,27 @@ export async function refreshStep(
   return report;
 }
 
-/** Price history + stats + assessment, all precomputed. */
+/** What `/v1/market` serves. */
+interface MarketPayload {
+  stats: NonNullable<ReturnType<typeof computeStats>>;
+  assessment: ReturnType<typeof buildAssessment>;
+  macro?: Awaited<ReturnType<typeof fetchMacroSnapshot>>;
+  charts: Record<string, SeriesPoint[]>;
+}
+
+function buildMarketPayload(
+  history: OhlcvPoint[],
+  nowMs: number,
+  macro: MarketPayload['macro'],
+): MarketPayload {
+  const stats = computeStats(history, nowMs, macro?.riskFreeAnnualPct ?? 0);
+  // Fewer than two bars means the price fetch came back effectively empty;
+  // writing that would replace a good payload with a blank one.
+  if (!stats) throw new Error(`insufficient price history (${history.length} bars)`);
+  return { stats, assessment: buildAssessment(stats, macro), macro, charts: buildCharts(history, nowMs) };
+}
+
+/** Price history + stats + assessment + the full macro snapshot. */
 export async function refreshMarket(env: Env, nowMs: number): Promise<void> {
   const history = await fetchSp500History(nowMs);
 
@@ -238,17 +282,42 @@ export async function refreshMarket(env: Env, nowMs: number): Promise<void> {
     }
   }
 
-  const stats = computeStats(history, nowMs, macro?.riskFreeAnnualPct ?? 0);
-  // Fewer than two bars means the price fetch came back effectively empty;
-  // writing that would replace a good payload with a blank one.
-  if (!stats) throw new Error(`insufficient price history (${history.length} bars)`);
+  await writeCache(env, KEYS.market, buildMarketPayload(history, nowMs, macro), nowMs);
+}
 
-  await writeCache(
-    env,
-    KEYS.market,
-    { stats, assessment: buildAssessment(stats, macro), macro, charts: buildCharts(history, nowMs) },
-    nowMs,
-  );
+/**
+ * The intraday half of the market refresh: new prices, same macro.
+ *
+ * Runs on every tick while the US extended session is open, which is only
+ * affordable because it skips the 11 FRED series that `refreshMarket` fetches.
+ * Those are reused verbatim from the stored payload — none of them can change
+ * within a trading day (CPI monthly, GDP quarterly, Treasury yields daily), so
+ * refetching them 96 times a day would buy nothing.
+ *
+ * Everything price-derived IS recomputed, not patched: the 52-week band,
+ * drawdown, technicals and the assessment all move with the price, and
+ * updating `price` alone would leave the dashboard internally inconsistent —
+ * which is the bug being fixed, not a shortcut worth taking.
+ *
+ * Returns whether it wrote. An unchanged price means no write, which also makes
+ * market holidays free: `marketHours` deliberately models no holiday calendar,
+ * and on a closed day this simply sees the same last close and does nothing.
+ */
+export async function refreshPrice(env: Env, nowMs: number): Promise<boolean> {
+  const existing = await readCache<MarketPayload>(env, KEYS.market);
+  // Nothing to reuse on a cold cache, so do the full thing once.
+  if (!existing) {
+    await refreshMarket(env, nowMs);
+    return true;
+  }
+
+  const history = await fetchSp500History(nowMs);
+  const payload = buildMarketPayload(history, nowMs, existing.data.macro);
+
+  if (payload.stats.price === existing.data.stats.price) return false;
+
+  await writeCache(env, KEYS.market, payload, nowMs);
+  return true;
 }
 
 /** Chart windows the dashboard offers. */

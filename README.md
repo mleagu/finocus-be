@@ -21,7 +21,7 @@ slow and liable to hit the limit.
 | `GET /debug/egress` | Whether Cloudflare's IPs can reach each upstream |
 | `POST /admin/refresh` | Trigger a refresh out of band (bearer `ADMIN_TOKEN`) |
 
-`POST /admin/refresh?phase=calendar` runs one named phase immediately instead of
+`POST /admin/refresh?phase=price` (or `market`, `investors`, `consensus`, `calendar`) runs one named phase immediately instead of
 waiting for the cursor to come round — useful after a deploy that changes one
 payload's shape. `?full=1` runs every phase, which exceeds the subrequest budget
 on the deployed Worker and is for local dev only.
@@ -110,9 +110,26 @@ Known upstream behaviour, all observed directly:
   budget and the write was cancelled with no error surfaced anywhere; the days
   are fetched concurrently for that reason, not for elegance.
 
+## Charts must not be stride-sampled
+
+`downsample` buckets by min/max. It previously kept every Nth bar, which was
+wrong in a way that reached the screen: at MAX the stride was 17, so **94% of
+bars were discarded and any spike shorter than 17 sessions vanished**. Because
+`allTimeHigh` and `fiftyTwoWeek` compute over the FULL series, the dashboard
+could quote an all-time high that appeared nowhere on the all-time chart.
+
+The stride also depended on the sliced length, so each window sampled a
+different subset — the same calendar day appeared in 3Y but not 5Y, and the line
+visibly changed shape when switching windows. That was reported as "prices are
+inconsistent"; the prices were right, the sampling was not.
+
+Measured on the live payload after the fix: the 1Y chart's minimum is now
+exactly `performance.fiftyTwoWeek.low`, and MAX reaches 676.53 — the March 2009
+low, which the stride sampler had been dropping.
+
 ## How the refresh works
 
-Cron fires every 15 minutes and runs **one step** of a round-robin cycle:
+Cron fires every 10 minutes and runs **one step** of a round-robin cycle:
 
 ```
 market -> investors[0..1] -> investors[2..3] -> ... -> consensus -> calendar -> market
@@ -131,9 +148,33 @@ same budget as outbound fetches, which is why the CUSIP->ticker map is one entry
 rather than one key per CUSIP, and why OpenFIGI calls are capped per manager
 (Bridgewater alone holds 993 positions).
 
-A full cycle is ~16 steps, so roughly 4 hours: prices refresh ~6x/day, and
-investor steps outside the four filing windows a year are almost entirely cache
-hits.
+### The market refresh is split in two
+
+`market` and `price` fetch the same prices; only `market` fetches macro.
+
+A full `market` step costs ~14 subrequests, and **11 of them are FRED series
+that cannot change within a trading day** — CPI is monthly, GDP quarterly,
+Treasury yields daily. Paying for those every ten minutes to learn one new
+price is the waste the split removes.
+
+- **`price`** runs on **every tick while the US extended session is open**
+  (04:00–20:00 ET, weekdays), reusing the stored `macro` verbatim. ~3
+  operations. Worst-case staleness during market hours is therefore one cron
+  interval.
+- **`market`** keeps its rotation slot and refetches everything including FRED.
+
+Everything price-derived is **recomputed**, not patched — the 52-week band,
+drawdown, technicals and the assessment all move with price, and updating
+`price` alone would leave the dashboard internally inconsistent.
+
+`price` writes nothing when the price is unchanged, which is also why
+`marketHours` models no holiday calendar: on a closed day it sees the same last
+close and does nothing. A hand-maintained holiday list would be one more thing
+to get wrong every year for no benefit.
+
+Off-session ticks run the rotation. The overnight window is 8 hours = 48 ticks,
+comfortably more than the 17-slot cycle, so every phase is reached at least
+twice a night and weekends run it continuously.
 
 Each step is independent and best-effort. A FRED outage must not blank the
 superinvestor data; one malformed filing must not abort the other 27. Anything
@@ -174,13 +215,14 @@ Three rules came out of that, and each is commented where it applies:
 - **Batch related state into one key.** Already why the CUSIP→ticker map is a
   single entry.
 
-Steady state is now ~40 writes/day, dominated by the three phases that
-legitimately produce new data every cycle.
+Steady state is now ~40 writes/day off-session. Adding the 10-minute in-session
+`price` refresh takes a trading day to **~115 writes**, still 12% of the budget:
+96 price ticks, of which only the ones where the price actually moved write.
 
 ## Tests
 
 ```bash
-npm test        # 150 tests
+npm test        # 170 tests
 npm run typecheck
 ```
 

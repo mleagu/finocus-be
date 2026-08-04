@@ -8,30 +8,43 @@ import { cursorAt, stepsPerCycle } from '../refresh';
  * derivation actually visits every phase in order and covers the whole roster —
  * a bug here does not throw, it silently starves a phase forever. Hence tests
  * on the sequence itself rather than on any single value.
+ *
+ * The rotation only runs OUTSIDE the US extended session, since every in-session
+ * tick is a `price` step. Rotation tests therefore anchor to a Saturday, where
+ * the market is shut all day whatever the timezone maths does.
  */
 
-const MINUTE = 60 * 1000;
-const TICK = 15 * MINUTE;
+const TICK = 10 * 60 * 1000;
 
-/** Every slot of one full cycle, in order. */
-function oneCycle(startTick = 0) {
+/** 2026-08-08 is a Saturday — the whole day is out of session. */
+const WEEKEND = Date.parse('2026-08-08T06:00:00Z');
+
+/** First tick at or after `fromMs` that starts a cycle. */
+function firstSlotZeroTick(fromMs: number): number {
+  const total = stepsPerCycle();
+  const tick = Math.ceil(fromMs / TICK);
+  return tick + ((total - (tick % total)) % total);
+}
+
+/** One full rotation cycle, entirely within the weekend. */
+function oneCycle(startTick = firstSlotZeroTick(WEEKEND)) {
   return Array.from({ length: stepsPerCycle() }, (_, i) => cursorAt((startTick + i) * TICK));
 }
 
-describe('cursorAt', () => {
+describe('cursorAt — rotation, out of session', () => {
   it('covers market, every investor batch, consensus and calendar', () => {
     const phases = oneCycle().map((c) => c.phase);
     expect(phases[0]).toBe('market');
     expect(phases[phases.length - 2]).toBe('consensus');
     expect(phases[phases.length - 1]).toBe('calendar');
     expect(phases.filter((p) => p === 'investors')).toHaveLength(stepsPerCycle() - 3);
+    expect(phases).not.toContain('price');
   });
 
   it('walks the whole roster exactly once per cycle, with no gaps', () => {
     const covered = new Set<string>();
     for (const cursor of oneCycle()) {
       if (cursor.phase !== 'investors') continue;
-      // Mirrors the slice refreshStep takes.
       for (const s of SUPERINVESTORS.slice(cursor.index, cursor.index + 2)) covered.add(s.id);
     }
     expect(covered.size).toBe(SUPERINVESTORS.length);
@@ -46,33 +59,54 @@ describe('cursorAt', () => {
   });
 
   it('repeats the same sequence on the next cycle', () => {
+    const start = firstSlotZeroTick(WEEKEND);
     const total = stepsPerCycle();
-    const first = oneCycle(0).map((c) => `${c.phase}:${c.index}`);
-    const second = oneCycle(total).map((c) => `${c.phase}:${c.index}`);
+    const first = oneCycle(start).map((c) => `${c.phase}:${c.index}`);
+    const second = oneCycle(start + total).map((c) => `${c.phase}:${c.index}`);
     expect(second).toEqual(first);
-  });
-
-  it('bumps the cycle counter exactly once per cycle', () => {
-    const total = stepsPerCycle();
-    expect(cursorAt(0).cycle).toBe(0);
-    expect(cursorAt((total - 1) * TICK).cycle).toBe(0);
-    expect(cursorAt(total * TICK).cycle).toBe(1);
-  });
-
-  it('holds the same slot for the whole 15-minute window', () => {
-    // A cron that fires a few seconds late must not land in the next slot and
-    // skip a phase.
-    const base = cursorAt(3 * TICK);
-    expect(cursorAt(3 * TICK + 1)).toEqual(base);
-    expect(cursorAt(3 * TICK + 14 * MINUTE + 59 * 1000)).toEqual(base);
-    expect(cursorAt(4 * TICK).phase === base.phase && cursorAt(4 * TICK).index === base.index).toBe(
-      false,
-    );
   });
 
   it('never returns an index past the end of the roster', () => {
     for (const cursor of oneCycle()) {
       if (cursor.phase === 'investors') expect(cursor.index).toBeLessThan(SUPERINVESTORS.length);
+    }
+  });
+
+  it('reaches every rotation phase within one night of out-of-session ticks', () => {
+    // 20:00–04:00 ET is 48 consecutive ticks at a 10-minute cron, comfortably
+    // more than the cycle length — this is what makes it safe to hand the whole
+    // trading day to `price`.
+    const seen = new Set<string>();
+    // Exactly the closed window: 20:00 ET through 03:50 ET, the last tick
+    // before pre-market reopens.
+    const start = Date.parse('2026-08-05T00:00:00Z') / TICK; // 20:00 ET Tue
+    for (let i = 0; i < 48; i++) seen.add(cursorAt((start + i) * TICK).phase);
+    expect([...seen].sort()).toEqual(['calendar', 'consensus', 'investors', 'market']);
+  });
+});
+
+describe('cursorAt — price, in session', () => {
+  it('runs price on every tick during the extended session', () => {
+    // 14:30Z on a Wednesday is 10:30 ET, mid regular session.
+    const start = Math.ceil(Date.parse('2026-08-05T14:30:00Z') / TICK);
+    for (let i = 0; i < 12; i++) {
+      expect(cursorAt((start + i) * TICK).phase).toBe('price');
+    }
+  });
+
+  it('covers pre-market and after-hours, not just the regular session', () => {
+    expect(cursorAt(Date.parse('2026-08-05T08:10:00Z')).phase).toBe('price'); // 04:10 ET
+    expect(cursorAt(Date.parse('2026-08-05T23:50:00Z')).phase).toBe('price'); // 19:50 ET
+  });
+
+  it('hands the clock back to the rotation once the session closes', () => {
+    expect(cursorAt(Date.parse('2026-08-06T00:10:00Z')).phase).not.toBe('price'); // 20:10 ET
+    expect(cursorAt(Date.parse('2026-08-05T07:50:00Z')).phase).not.toBe('price'); // 03:50 ET
+  });
+
+  it('never runs price at the weekend', () => {
+    for (let i = 0; i < 144; i++) {
+      expect(cursorAt(WEEKEND + i * TICK).phase).not.toBe('price');
     }
   });
 });

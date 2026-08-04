@@ -163,13 +163,72 @@ export function sliceByWindow(
   return series.filter((p) => p.t >= fromMs);
 }
 
-/** Stride-downsample a series to at most `maxPoints`, always keeping the last point. */
+/**
+ * Thin a series to roughly `maxPoints`, PRESERVING THE EXTREMES OF EVERY BUCKET.
+ *
+ * This replaced a stride sample (`i % stride === 0`), which was wrong in two
+ * ways that showed up directly in the UI:
+ *
+ * 1. IT DISCARDED HIGHS AND LOWS. At MAX the stride was 17, so 94% of bars were
+ *    thrown away and any spike shorter than 17 sessions vanished. The chart
+ *    could therefore contradict the stat printed next to it — `fiftyTwoWeek`
+ *    and `allTimeHigh` compute over the FULL series, so the dashboard showed an
+ *    all-time high that did not appear anywhere on the all-time chart.
+ * 2. EACH WINDOW SAMPLED A DIFFERENT SUBSET. The stride depends on the sliced
+ *    length, so 3Y kept every 3rd bar and 5Y every 5th: the same calendar day
+ *    appeared in one window and not the other, and the line visibly changed
+ *    shape when switching between them. That is the "prices are inconsistent"
+ *    report — the prices were right, the sampling was not.
+ *
+ * Bucketing by min/max fixes both. Every bucket contributes its lowest and
+ * highest bar in chronological order, so the envelope of the series is exact at
+ * any zoom level, and the extremes the stats quote are always on the chart. The
+ * first and last bars are always kept so windows start and end where they claim.
+ *
+ * Output is up to ~`maxPoints` (two per bucket, deduped), which is why buckets
+ * are sized against half the budget.
+ */
 export function downsample(series: SeriesPoint[], maxPoints = 300): SeriesPoint[] {
   if (series.length <= maxPoints) return series;
-  const stride = Math.ceil(series.length / maxPoints);
-  const out = series.filter((_, i) => i % stride === 0);
-  const last = series[series.length - 1];
-  if (out[out.length - 1] !== last) out.push(last);
+
+  // Two points per bucket, plus the explicit first and last bars.
+  const buckets = Math.max(1, Math.floor((maxPoints - 2) / 2));
+  const size = series.length / buckets;
+  const out: SeriesPoint[] = [];
+  let lastIndex = -1;
+
+  const push = (index: number) => {
+    // Buckets are float-width, so neighbours can resolve to the same bar.
+    if (index > lastIndex) {
+      out.push(series[index]);
+      lastIndex = index;
+    }
+  };
+
+  // Anchor the start: bucket 0's extremes are rarely bar 0, and a window that
+  // silently begins days late misreports its own range.
+  push(0);
+
+  for (let b = 0; b < buckets; b++) {
+    const start = Math.floor(b * size);
+    const end = Math.min(series.length, Math.floor((b + 1) * size));
+    if (start >= end) continue;
+
+    let lo = start;
+    let hi = start;
+    for (let i = start + 1; i < end; i++) {
+      if (series[i].v < series[lo].v) lo = i;
+      if (series[i].v > series[hi].v) hi = i;
+    }
+
+    // Chronological, so the line never doubles back on itself.
+    const [first, second] = lo <= hi ? [lo, hi] : [hi, lo];
+    push(first);
+    push(second);
+  }
+
+  // The final bar is the current price and must be exact, not a bucket extreme.
+  push(series.length - 1);
   return out;
 }
 
